@@ -3,18 +3,15 @@ import math
 import random
 
 from datetime import date, datetime, time, timedelta
-from io import BytesIO
 from itertools import filterfalse, islice
 from typing import Iterator, List, Tuple
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-import psycopg2
 
-from pgcopy import CopyManager  # type: ignore
 from tqdm import tqdm
 
-from . import date_utils, defs
+from . import date_utils, db, defs
 
 
 def calculate_ttes(
@@ -87,7 +84,7 @@ def generate_for_ts(
 
 
 def run(
-    conn: psycopg2.extensions.connection,
+    conn: db.Db,
     fund: str,
     start: date,
     end: date,
@@ -98,7 +95,6 @@ def run(
     num_expiries: int,
     num_strikes: int,
 ) -> None:
-    mgr = CopyManager(conn, defs.PRICING_TABLE, defs.PRICING_COLUMNS)
     is_holiday = date_utils.is_holiday_fn(start, end)
 
     current_date = start
@@ -121,14 +117,15 @@ def run(
             while current_ts <= end_current_date:
                 pbar.set_description(f"Processing: {current_ts}")
                 try:
-                    mgr.copy(
+                    conn.bulk_insert(
+                        defs.PRICING_TABLE,
+                        defs.PRICING_COLUMNS,
                         generate_for_ts(
                             current_ts, fund, expiries, num_strikes
                         ),
-                        BytesIO,
                     )
                 except Exception as e:
-                    print(f"Error dumping {current_ts}: {e}")
+                    print(f"Error inserting data for {current_ts}: {e}")
                 current_ts += freq
                 pbar.update(1)
         try:
@@ -155,15 +152,19 @@ def main() -> None:
     parser.add_argument("--num-expiries", type=int, default=12)
     parser.add_argument("--num-strikes", type=int, default=500)
     parser.add_argument("--user", type=str, required=True)
-    parser.add_argument("--pass", type=str, required=True)
+    parser.add_argument("--passwd", type=str, required=True)
     parser.add_argument("--host", type=str, required=True)
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--dbname", type=str, required=True)
     arguments = parser.parse_args()
-    connection = "postgres://{user}:{pass}@{host}:{port}/{dbname}?sslmode=require".format(
-        **vars(arguments)
-    )
-    with psycopg2.connect(connection) as conn:
+
+    with db.connect(
+        arguments.user,
+        arguments.passwd,
+        arguments.host,
+        arguments.port,
+        arguments.dbname,
+    ) as conn:
         run(
             conn,
             arguments.fund,
