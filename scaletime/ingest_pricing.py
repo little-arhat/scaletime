@@ -5,7 +5,7 @@ import random
 from datetime import date, datetime, time, timedelta
 from io import BytesIO
 from itertools import filterfalse, islice
-from typing import Iterator, List
+from typing import Iterator, List, Tuple
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -14,50 +14,21 @@ import psycopg2
 from pgcopy import CopyManager  # type: ignore
 from tqdm import tqdm
 
-from . import date_utils
+from . import date_utils, defs
 
 
-DEFAULT_EXPIRY_TIME = time(15, 30)
-MIN_TTE = 0.001
-
-
-PRICING_COLUMNS = [
-    "time",
-    "fund",
-    "expiry_date",
-    "expiry_time",
-    "expiry_cycle",
-    "strike",
-    "price",
-    "volatility",
-    "delta",
-    "skew_delta",
-    "gamma",
-    "skew_gamma",
-    "theta",
-    "additional_event_variance",
-    "forward",
-    "base_price",
-    "rho",
-    "moving_skew",
-    "moving_smile",
-    "underlying_delta",
-    "underlying_skew_delta",
-    "vega",
-    "tw_vega",
-    "time_to_expiry",
-    "vola_time_to_expiry",
-    "strike_moneyness",
-    "base_volatility",
-    "basevol_moneyness",
-    "market_width",
-    "vanna",
-    "charm",
-    "price_error",
-    "vola_error",
-    "contract_type",
-    "option_kind",
-]
+def calculate_ttes(
+    ts: datetime, expiry: date, expiry_time: time
+) -> Tuple[float, float]:
+    edt = datetime.combine(expiry, expiry_time, tzinfo=ts.tzinfo)
+    to_expiry = edt - ts
+    ttexp = defs.SECONDS_IN_A_YEAR / to_expiry.seconds
+    vtexp = (
+        defs.BUSINESS_SECONDS_IN_A_YEAR
+        / to_expiry.seconds
+        * random.uniform(0.9, 1.2)
+    )
+    return (ttexp, vtexp)
 
 
 def generate_for_ts(
@@ -67,22 +38,20 @@ def generate_for_ts(
     for (i, expiry) in enumerate(expiries):
         forward = base_price * (1 + i * 0.1)
         base_volatility = random.uniform(10, 100)
-        days_to_exp = (expiry - ts.date()).days
-        tte = days_to_exp / 365.0
-        vtexp = days_to_exp / 252.0
+        ttexp, vtexp = calculate_ttes(ts, expiry, defs.EXPIRY_TIME)
         additional_event_variance = random.uniform(0, 1)
         rho = random.random()
         for strike in range(100, 5 * num_strikes + 1, 5):
             moneyness = math.log(forward / strike) / math.sqrt(
-                max(vtexp, MIN_TTE)
+                max(vtexp, defs.MIN_VTEXP)
             )
             bv_moneyness = moneyness / base_volatility
-            for kind in ["call", "put"]:
+            for kind in defs.OPTION_KINDS:
                 yield [
                     ts,
                     fund,
                     expiry,
-                    DEFAULT_EXPIRY_TIME,
+                    defs.EXPIRY_TIME,
                     "WEEKLY",
                     float(strike),
                     random.uniform(50, 250),  # price
@@ -102,7 +71,7 @@ def generate_for_ts(
                     random.uniform(0, 1),
                     random.uniform(0, 1),
                     random.uniform(0, 1),
-                    tte,
+                    ttexp,
                     vtexp,
                     moneyness,
                     base_volatility,
@@ -129,7 +98,7 @@ def run(
     num_expiries: int,
     num_strikes: int,
 ) -> None:
-    mgr = CopyManager(conn, "raw_pricing", PRICING_COLUMNS)
+    mgr = CopyManager(conn, defs.PRICING_TABLE, defs.PRICING_COLUMNS)
     is_holiday = date_utils.is_holiday_fn(start, end)
 
     current_date = start
