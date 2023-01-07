@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+# start templated
+ARGS=(hook-impl --config=.pre-commit-config.yaml --hook-type=pre-commit)
+# end templated
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+ARGS+=(--hook-dir "$HERE" -- "$@")
+
+exec poetry run pre-commit "${ARGS[@]}"

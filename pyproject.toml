@@ -1,0 +1,73 @@
+[tool.poetry]
+name = "scaletime"
+version = "0.1.0"
+description = "timescale db playround"
+authors = ["Roma Sokolov <sokolov.r.v@gmail.com>"]
+readme = "README.md"
+
+
+[tool.poetry.dependencies]
+python = "^3.10,<3.12"
+psycopg2 = "^2.9.5"
+trio = "^0.19.0"
+pandas = "^1.5"
+pgcopy = "^1.5"
+tqdm = "^4"
+pydantic = "^1.10.4"
+
+
+[tool.poetry.group.dev.dependencies]
+black = "^22"
+isort = "^5"
+pre-commit = "^2"
+pytest = "^6.2.5"
+mypy = "^0.991"
+pandas-stubs = "^1.5.2.230105"
+types-psycopg2 = "^2.9.21.2"
+types-tqdm = "^4.64.7.9"
+autoflake = "^2.0.0"
+
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+
+[tool.black]
+line-length = 80
+target-version = ['py310']
+
+
+[tool.isort]
+profile = 'black'
+py_version = 310
+combine_as_imports = true
+lines_between_types = 1
+lines_after_imports = 2
+
+
+[tool.mypy]
+python_version = "3.10"
+files = "scaletime"
+plugins = "pydantic.mypy"
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+allow_redefinition = true
+show_error_context = true
+show_error_codes = true
+pretty = true
+strict = true
+
+
+[tool.autoflake]
+# check = true
+imports = ["psycopg2", "pgcopy", "pandas", "tqdm"]
+in_place = true
+
+
+[tool.poetry.scripts]
+ingest_pricing = "scaletime.ingest_pricing:main"
