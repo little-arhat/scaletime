@@ -47,5 +47,41 @@ CREATE INDEX raw_pricing_fund_basevol_moneyness_vola_time_to_expiry_time_idx ON 
 CREATE INDEX raw_pricing_fund_expiry_date_time_idx ON public.raw_pricing USING btree (fund, expiry_date, "time" DESC);
 CREATE INDEX raw_pricing_time_idx ON public.raw_pricing USING btree ("time" DESC);
 
-alter table raw_pricing set (timescaledb.compress, timescaledb.compress_segmentby = 'fund, expiry_date');
+ALTER TABLE raw_pricing set (timescaledb.compress, timescaledb.compress_segmentby = 'fund, expiry_date');
 SELECT add_compression_policy('raw_pricing', INTERVAL '7 days');
+
+
+CREATE MATERIALIZED VIEW ohlc_daily
+WITH (timescaledb.continuous) AS
+SELECT fund, time_bucket(INTERVAL '1 day', "time") as bucket,
+       first("time", "time") as open_time,
+       first(base_price, "time") as "open",
+       last("time", "time") as close_time,
+       last(base_price, "time") as "close",
+       count(*) as observations,
+       max(base_price) as high,
+       min(base_price) as low
+FROM raw_pricing
+  GROUP BY fund, bucket
+  WITH NO DATA;
+
+SELECT add_continuous_aggregate_policy('ohlc_daily',
+  start_offset => NULL,
+  end_offset   => INTERVAL '1 day',
+  schedule_interval => INTERVAL '12 hours');
+-- CALL refresh_continuous_aggregate('ohlc_daily', NULL, localtimestamp - INTERVAL '1 day');
+
+
+CREATE MATERIALIZED VIEW daily_open_data
+WITH (timescaledb.continuous) AS
+SELECT time_bucket(INTERVAL '1 day', rp."time") as bucket,
+       (first(rp.*, "time")).*
+FROM raw_pricing as rp
+  GROUP BY bucket
+  WITH NO DATA;
+
+SELECT add_continuous_aggregate_policy('daily_open_data',
+  start_offset => NULL,
+  end_offset   => INTERVAL '1 day',
+  schedule_interval => INTERVAL '12 hours');
+-- CALL refresh_continuous_aggregate('daily_open_data', NULL, localtimestamp - INTERVAL '1 day');
