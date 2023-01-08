@@ -182,3 +182,47 @@ def exact_snapshot() -> None:
                 ts=arguments.ts.astimezone(arguments.tz),
             )
         )
+
+
+SINGLE_STRIKE_SERIES = """
+SELECT * FROM raw_pricing
+WHERE fund = %(fund)s
+AND expiry_date = %(expiry)s
+AND strike = %(strike)s
+AND time >= %(start)s
+AND time < %(end)s
+ORDER BY time DESC
+"""
+
+
+def one_strike_series() -> None:
+    parser = args.create_arg_parser()
+    parser.add_argument("--fund", required=True, type=str)
+    parser.add_argument("--expiry", required=True, type=date.fromisoformat)
+    parser.add_argument("--strike", required=True, type=float)
+    parser.add_argument(
+        "--start", type=datetime.fromisoformat, default=datetime(1970, 1, 1)
+    )
+    parser.add_argument(
+        "--end", type=datetime.fromisoformat, default=datetime(3000, 1, 1)
+    )
+    parser.add_argument(
+        "--format", choices=["pandas", "polars"], default="pandas"
+    )
+    arguments = parser.parse_args()
+    with db.connect(arguments) as conn:
+        fn = (
+            conn.to_polars_df
+            if arguments.format == "polars"
+            else conn.to_pandas_df
+        )
+        print(
+            fn(
+                SINGLE_STRIKE_SERIES,
+                fund=arguments.fund,
+                expiry=arguments.expiry,
+                strike=arguments.strike,
+                start=arguments.start.astimezone(arguments.tz),
+                end=arguments.end.astimezone(arguments.tz),
+            )
+        )
