@@ -46,3 +46,6 @@ SELECT add_dimension('raw_pricing' 'fund', 16);
 CREATE INDEX raw_pricing_fund_basevol_moneyness_vola_time_to_expiry_time_idx ON public.raw_pricing USING btree (fund, basevol_moneyness, vola_time_to_expiry, "time" DESC);
 CREATE INDEX raw_pricing_fund_expiry_date_time_idx ON public.raw_pricing USING btree (fund, expiry_date, "time" DESC);
 CREATE INDEX raw_pricing_time_idx ON public.raw_pricing USING btree ("time" DESC);
+
+alter table raw_pricing set (timescaledb.compress, timescaledb.compress_segmentby = 'fund, expiry_date');
+SELECT add_compression_policy('raw_pricing', INTERVAL '7 days');
