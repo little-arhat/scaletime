@@ -112,7 +112,7 @@ def run(
         current_ts = datetime.combine(current_date, mkt_open, tzinfo=tz)
         end_current_date = datetime.combine(current_date, mkt_close, tzinfo=tz)
         iterations = (end_current_date - current_ts).seconds // freq.seconds
-        print(f"Working with {current_date}:")
+        print(f"Working with {current_date} [now={datetime.now()}]:")
         with tqdm(total=iterations) as pbar:
             while current_ts <= end_current_date:
                 pbar.set_description(f"Processing: {current_ts}")
@@ -132,7 +132,7 @@ def run(
             conn.commit()
         except Exception as e:
             print(f"Failed to commit {current_date}: {e}")
-        print(f"Done with {current_date}!")
+        print(f"Done with {current_date}; [now={datetime.now()}]!")
         current_date += timedelta(days=1)
 
 

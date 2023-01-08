@@ -1,6 +1,5 @@
 from contextlib import contextmanager
-from io import BytesIO
-from typing import Callable, Collection, Iterator
+from typing import Callable, Collection, Dict, Iterator
 
 import psycopg2
 
@@ -12,6 +11,7 @@ class Db:
         self._conn_string = conn_string
         self._retries = retries_on_disconnect
         self._conn = psycopg2.connect(self._conn_string)
+        self._mgrs: Dict[str, CopyManager] = {}
 
     def _connect(self) -> None:
         if self._is_closed():
@@ -36,18 +36,21 @@ class Db:
         data: Iterator[Collection[object]],
     ) -> None:
         attempt = 1
-        mgr = CopyManager(self._conn, table, columns)
-        with BytesIO() as tmp:
-            mgr.writestream(data, tmp)
+        mgr = self._copy_mgr(table, columns)
 
-            def ins() -> None:
-                tmp.seek(0)
-                mgr.copystream(tmp)
+        def ins() -> None:
+            mgr.threading_copy(data)
 
-            def rc() -> None:
-                mgr.conn = self._conn
+        def rc() -> None:
+            mgr.conn = self._conn
 
-            self._with_reconnects(ins, rc, f"insert to {table}")
+        self._with_reconnects(ins, rc, f"insert to {table}")
+
+    def _copy_mgr(self, table: str, columns: Collection[str]) -> CopyManager:
+        m = self._mgrs.get(table)
+        if m is None:
+            self._mgrs[table] = m = CopyManager(self._conn, table, columns)
+        return m
 
     def _with_reconnects(
         self,
