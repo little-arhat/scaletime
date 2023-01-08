@@ -19,12 +19,10 @@ def calculate_ttes(
 ) -> Tuple[float, float]:
     edt = datetime.combine(expiry, expiry_time, tzinfo=ts.tzinfo)
     to_expiry = edt - ts
-    ttexp = defs.SECONDS_IN_A_YEAR / to_expiry.seconds
+    ttexp = to_expiry.total_seconds() / defs.SECONDS_IN_A_YEAR
     vtexp = (
-        defs.BUSINESS_SECONDS_IN_A_YEAR
-        / to_expiry.seconds
-        * random.uniform(0.9, 1.2)
-    )
+        to_expiry.seconds / defs.BUSINESS_SECONDS_IN_A_YEAR
+    ) * random.uniform(0.9, 1.2)
     return (ttexp, vtexp)
 
 
