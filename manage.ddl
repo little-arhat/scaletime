@@ -51,7 +51,7 @@ ALTER TABLE raw_pricing set (timescaledb.compress, timescaledb.compress_segmentb
 SELECT add_compression_policy('raw_pricing', INTERVAL '7 days');
 
 
-CREATE MATERIALIZED VIEW ohlc_daily
+CREATE MATERIALIZED VIEW daily_ohlc
 WITH (timescaledb.continuous) AS
 SELECT fund, time_bucket(INTERVAL '1 day', "time") as bucket,
        first("time", "time") as open_time,
@@ -65,23 +65,49 @@ FROM raw_pricing
   GROUP BY fund, bucket
   WITH NO DATA;
 
-SELECT add_continuous_aggregate_policy('ohlc_daily',
-  start_offset => NULL,
+ALTER MATERIALIZED VIEW daily_ohlc set (timescaledb.compress = true);
+
+SELECT add_continuous_aggregate_policy('daily_ohlc',
+  start_offset => INTERVAL '14 days',
   end_offset   => INTERVAL '1 day',
   schedule_interval => INTERVAL '12 hours');
--- CALL refresh_continuous_aggregate('ohlc_daily', NULL, localtimestamp - INTERVAL '1 day');
+SELECT add_compression_policy('daily_ohlc', compress_after=>'7 days'::interval);
+-- CALL refresh_continuous_aggregate('daily_ohlc', NULL, localtimestamp - INTERVAL '1 day');
 
+
+CREATE VIEW expiry_pricing
+  AS
+  SELECT time, fund, expiry_date, expiry_time, expiry_cycle,
+         max(additional_event_variance) as additional_event_variance,
+         max(forward) as forward,
+         max(base_price) as base_price,
+         max(rho) as rho,
+         max(time_to_expiry) as time_to_expiry,
+         max(vola_time_to_expiry) as vola_time_to_expiry,
+         max(base_volatility) as base_volatility
+    FROM raw_pricing
+   GROUP BY time, fund, expiry_date, expiry_time, expiry_cycle;
 
 CREATE MATERIALIZED VIEW daily_open_data
 WITH (timescaledb.continuous) AS
-SELECT time_bucket(INTERVAL '1 day', rp."time") as bucket,
-       (first(rp.*, "time")).*
-FROM raw_pricing as rp
-  GROUP BY bucket
+SELECT time_bucket(INTERVAL '1 day', "time") as bucket,
+       (first(raw_pricing.*, "time")).*
+  FROM raw_pricing
+  GROUP BY
+  bucket,
+  fund,
+  expiry_date,
+  expiry_time,
+  expiry_cycle,
+  contract_type,
+  option_kind,
+  strike
   WITH NO DATA;
 
+ALTER MATERIALIZED VIEW daily_open_data set (timescaledb.compress = true);
+
 SELECT add_continuous_aggregate_policy('daily_open_data',
-  start_offset => NULL,
+  start_offset => NULL, -- same note about start offset + compression policy
   end_offset   => INTERVAL '1 day',
   schedule_interval => INTERVAL '12 hours');
 -- CALL refresh_continuous_aggregate('daily_open_data', NULL, localtimestamp - INTERVAL '1 day');

@@ -14,6 +14,10 @@ pandas = "^1.5"
 pgcopy = "^1.5"
 tqdm = "^4"
 pydantic = "^1.10.4"
+# connectorx = { git = "https://github.com/sfu-db/connector-x.git", rev = "4012f76de9efd61854ad28bab720b99b6a5c7291", subdirectory = "connectorx-python" }
+connectorx = "^0.3.2-alpha.1"
+polars = "^0.15.14"
+pyarrow = "^10.0.1"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -71,3 +75,10 @@ in_place = true
 
 [tool.poetry.scripts]
 ingest_pricing = "scaletime.ingest_pricing:main"
+raw_pricing_size = "scaletime.queries:raw_pricing_size"
+compression_stats = "scaletime.queries:chunk_compression_stats"
+mat_views_size = "scaletime.queries:materialized_view_sizes"
+open_data_daily = "scaletime.queries:open_data_daily"
+day_data = "scaletime.queries:day_data"
+exact_snapshot = "scaletime.queries:exact_snapshot"
+snapshot = "scaletime.queries:snapshot"

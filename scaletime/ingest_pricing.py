@@ -1,4 +1,3 @@
-import argparse
 import math
 import random
 
@@ -11,7 +10,7 @@ import pandas as pd
 
 from tqdm import tqdm
 
-from . import date_utils, db, defs
+from . import args, date_utils, db, defs
 
 
 def calculate_ttes(
@@ -135,34 +134,20 @@ def run(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
+    parser = args.create_arg_parser()
     parser.add_argument("--fund", required=True, type=str)
     parser.add_argument("--start", required=True, type=date.fromisoformat)
-    parser.add_argument("--end", type=date.fromisoformat, required=True)
+    parser.add_argument("--end", required=True, type=date.fromisoformat)
     parser.add_argument("--open", type=time.fromisoformat, default=time(8, 30))
     parser.add_argument("--close", type=time.fromisoformat, default=time(15, 0))
     parser.add_argument(
         "--freq", type=pd.Timedelta, default=pd.Timedelta("5min")
     )
-    parser.add_argument(
-        "--tz", type=ZoneInfo, default=ZoneInfo("America/Chicago")
-    )
     parser.add_argument("--num-expiries", type=int, default=12)
     parser.add_argument("--num-strikes", type=int, default=500)
-    parser.add_argument("--user", type=str, required=True)
-    parser.add_argument("--passwd", type=str, required=True)
-    parser.add_argument("--host", type=str, required=True)
-    parser.add_argument("--port", type=int, required=True)
-    parser.add_argument("--dbname", type=str, required=True)
     arguments = parser.parse_args()
 
-    with db.connect(
-        arguments.user,
-        arguments.passwd,
-        arguments.host,
-        arguments.port,
-        arguments.dbname,
-    ) as conn:
+    with db.connect(arguments) as conn:
         run(
             conn,
             arguments.fund,

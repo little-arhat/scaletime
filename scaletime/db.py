@@ -1,6 +1,11 @@
-from contextlib import contextmanager
-from typing import Callable, Collection, Dict, Iterator
+import argparse
 
+from contextlib import contextmanager
+from typing import Any, Callable, Collection, Dict, Iterator
+
+import connectorx as cx  # type: ignore
+import pandas as pd
+import polars
 import psycopg2
 
 from pgcopy import CopyManager  # type: ignore
@@ -23,6 +28,24 @@ class Db:
 
     def _is_closed(self) -> bool:
         return self._conn.closed != 0
+
+    def to_pandas_df(self, sql: str, **params: Any) -> pd.DataFrame:
+        df: pd.DataFrame = self._read_sql(sql, "pandas", **params)
+        return df
+
+    def to_polars_df(self, sql: str, **params: Any) -> polars.DataFrame:
+        df: polars.DataFrame = self._read_sql(sql, "polars", **params)
+        return df
+
+    def _read_sql(
+        self, sql: str, return_type: str = "pandas", **params: Any
+    ) -> Any:
+        sql = sql
+        if params:
+            with self._conn.cursor() as cursor:
+                b: bytes = cursor.mogrify(sql, params)  # type: ignore
+                sql = b.decode("utf-8")
+        return cx.read_sql(self._conn_string, sql, return_type=return_type)
 
     def commit(self) -> None:
         self._with_reconnects(
@@ -83,16 +106,22 @@ CONN_STRING = (
 )
 
 
+def connect_string_from_args(arguments: argparse.Namespace) -> str:
+    return CONN_STRING.format(
+        user=arguments.user,
+        passwd=arguments.passwd,
+        host=arguments.host,
+        port=arguments.port,
+        dbname=arguments.dbname,
+    )
+
+
 @contextmanager
 def connect(
-    user: str,
-    passwd: str,
-    host: str,
-    port: int,
-    dbname: str,
+    arguments: argparse.Namespace,
     retries_on_disconnect: int = 3,
 ) -> Iterator[Db]:
-    conn_string = CONN_STRING.format(**locals())
+    conn_string = connect_string_from_args(arguments)
     auto_reconnect = Db(conn_string, retries_on_disconnect)
     try:
         yield auto_reconnect
